@@ -243,16 +243,24 @@ extension SwiftLinkPreview {
     }
 
     // Unshorten URL by following redirections
-    fileprivate func unshortenURL(_ url: URL, cancellable: Cancellable, completion: @escaping (URL) -> Void, onError: @escaping (PreviewError) -> Void) {
+    fileprivate func unshortenURL(_ url: URL, cancellable: Cancellable, completion: @escaping (URL) -> Void, onError: @escaping (PreviewError) -> Void, method : String = "HEAD") {
 
         if cancellable.isCancelled {return}
 
         var task: URLSessionDataTask?
         var request = URLRequest(url: url)
-        request.httpMethod = "HEAD"
+        request.httpMethod = method
+        
 
         task = session.dataTask(with: request, completionHandler: { data, response, error in
             if error != nil {
+                
+                if error.debugDescription.contains("100") {
+                    task?.cancel()
+                    task = nil
+                    self.unshortenURL(url, cancellable: cancellable, completion: completion, onError: onError, method: "GET")
+                    return
+                }
                 self.workQueue.async {
                     if !cancellable.isCancelled {
                         onError(.cannotBeOpened("\(url.absoluteString): \(error.debugDescription)"))
